@@ -1,0 +1,29 @@
+services:
+  backend:
+    image: ${NEXUS_BACKEND_URL}/${NEXUS_REPO_BACKEND}/sandbox-backend:latest
+    container_name: sandbox-backend
+    environment:
+      - PORT=${BACKEND_PORT}
+      - ENV=${BACKEND_ENV}
+    ports:
+      - "${BACKEND_PORT}:8081"
+    restart: unless-stopped
+    networks:
+      - sandbox-net
+
+  frontend:
+    image: ${NEXUS_FRONTEND_URL}/${NEXUS_REPO_FRONTEND}/sandbox-frontend:latest
+    container_name: sandbox-frontend
+    environment:
+      - NODE_ENV=${NODE_ENV}
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT}:8888"
+    restart: unless-stopped
+    networks:
+      - sandbox-net
+
+networks:
+  sandbox-net:
+    driver: bridge
