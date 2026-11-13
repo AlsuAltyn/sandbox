@@ -65,7 +65,7 @@ jobs:
         with:
           images: |
             ghcr.io/${{ github.repository_owner }}/sandbox-${{ matrix.component }}
-            ${{ secrets.NEXUS_HOST }}/alsualtyn-${{ matrix.component }}-docker/sandbox-${{ matrix.component }}
+            ${{ secrets.NEXUS_HOST }}/altynguzina-${{ matrix.component }}-docker/sandbox-${{ matrix.component }}
           tags: |
             type=raw,value=${{ needs.version.outputs.version }}
             type=sha,format=short
@@ -80,6 +80,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Разрешаем пушить в Nexus по HTTP (без HTTPS)
+          insecure: true
 
   deploy:
     needs: [version, build]
@@ -92,6 +94,7 @@ jobs:
 
       - name: Prepare .env file
         run: |
+          # ИСПОЛЬЗУЕМ ИМЕНА ВАШИХ РЕПОЗИТОРИЕВ В NEXUS
           echo "REPOSITORY_BACKEND=${{ secrets.NEXUS_HOST }}/altynguzina-backend-docker/sandbox-backend" > .env
           echo "REPOSITORY_FRONTEND=${{ secrets.NEXUS_HOST }}/altynguzina-frontend-docker/sandbox-frontend" >> .env
           echo "IMAGE_TAG=${{ needs.version.outputs.version }}" >> .env
@@ -103,6 +106,7 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
+          # Используем переменную vars, так как вы создали её как Variable
           known_hosts: ${{ vars.VM_SSH_KNOWN_HOSTS }}
           source: "src/docker-compose.yml,src/deploy.sh,.env"
           target: "~/sandbox"
@@ -113,17 +117,16 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
-          known_hosts: ${{ secrets.VM_SSH_KNOWN_HOSTS }}
+          known_hosts: ${{ vars.VM_SSH_KNOWN_HOSTS }}
           script: |
             cd ~/sandbox
             
-            # Перемещаем .env туда, где лежит docker-compose.yml (в папку src)
+            # Перемещаем .env в папку src, где лежит docker-compose.yml
             mv .env src/.env
             
-            # Авторизация в Nexus
+            # Логин в Nexus (переопределяем протокол на http для docker login, если нужно)
             echo "${{ secrets.NEXUS_REPO_PASS }}" | docker login ${{ secrets.NEXUS_HOST }} -u ${{ secrets.NEXUS_REPO_USER }} --password-stdin
             
-            # Переходим в папку src и запускаем деплой
             cd src
             chmod +x deploy.sh
             ./deploy.sh
