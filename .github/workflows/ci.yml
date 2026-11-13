@@ -1,0 +1,129 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "**" ]
+  workflow_dispatch:
+    inputs:
+      VERSION:
+        description: 'Version to deploy (for rollback)'
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Generate Version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.VERSION }}" ]; then
+            echo "version=${{ github.event.inputs.VERSION }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=$(date -u +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    needs: version
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [backend, frontend]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Nexus Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.NEXUS_HOST }}
+          username: ${{ secrets.NEXUS_REPO_USER }}
+          password: ${{ secrets.NEXUS_REPO_PASS }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository_owner }}/sandbox-${{ matrix.component }}
+            ${{ secrets.NEXUS_HOST }}/alsualtyn-${{ matrix.component }}-docker/sandbox-${{ matrix.component }}
+          tags: |
+            type=raw,value=${{ needs.version.outputs.version }}
+            type=sha,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./src/${{ matrix.component }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: [version, build]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare .env file
+        run: |
+          echo "REPOSITORY_BACKEND=${{ secrets.NEXUS_HOST }}/altynguzina-backend-docker/sandbox-backend" > .env
+          echo "REPOSITORY_FRONTEND=${{ secrets.NEXUS_HOST }}/altynguzina-frontend-docker/sandbox-frontend" >> .env
+          echo "IMAGE_TAG=${{ needs.version.outputs.version }}" >> .env
+          echo "VERSION=${{ needs.version.outputs.version }}" >> .env
+
+      - name: Copy files to VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          known_hosts: ${{ vars.VM_SSH_KNOWN_HOSTS }}
+          source: "src/docker-compose.yml,src/deploy.sh,.env"
+          target: "~/sandbox"
+
+      - name: Execute remote deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          known_hosts: ${{ secrets.VM_SSH_KNOWN_HOSTS }}
+          script: |
+            cd ~/sandbox
+            
+            # Перемещаем .env туда, где лежит docker-compose.yml (в папку src)
+            mv .env src/.env
+            
+            # Авторизация в Nexus
+            echo "${{ secrets.NEXUS_REPO_PASS }}" | docker login ${{ secrets.NEXUS_HOST }} -u ${{ secrets.NEXUS_REPO_USER }} --password-stdin
+            
+            # Переходим в папку src и запускаем деплой
+            cd src
+            chmod +x deploy.sh
+            ./deploy.sh

@@ -1,25 +1,26 @@
 services:
   backend:
-    image: ${NEXUS_BACKEND_URL}/${NEXUS_REPO_BACKEND}/sandbox-backend:latest
+    # Используем переменные, которые будут формироваться в пайплайне
+    image: ${REPOSITORY_BACKEND}:${IMAGE_TAG}
     container_name: sandbox-backend
     environment:
-      - PORT=${BACKEND_PORT}
-      - ENV=${BACKEND_ENV}
+      - PORT=8081
+      - ENV=production
     ports:
-      - "${BACKEND_PORT}:8081"
+      - "8081:8081"
     restart: unless-stopped
     networks:
       - sandbox-net
 
   frontend:
-    image: ${NEXUS_FRONTEND_URL}/${NEXUS_REPO_FRONTEND}/sandbox-frontend:latest
+    image: ${REPOSITORY_FRONTEND}:${IMAGE_TAG}
     container_name: sandbox-frontend
     environment:
-      - NODE_ENV=${NODE_ENV}
+      - NODE_ENV=production
     depends_on:
       - backend
     ports:
-      - "${FRONTEND_PORT}:8888"
+      - "80:8888" # Предполагаю, что фронт у вас слушает 8888, а наружу отдаем на 80
     restart: unless-stopped
     networks:
       - sandbox-net
