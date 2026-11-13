@@ -42,20 +42,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 1. Создаем файл конфигурации BuildKit (TOML) с разрешением HTTP для Nexus
+      # 1. Настраиваем сам Docker на раннере (чтобы он доверял HTTP)
+      - name: Configure Docker insecure registry
+        run: |
+          sudo mkdir -p /etc/docker
+          echo '{"insecure-registries":["${{ secrets.NEXUS_HOST }}"]}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
+
+      # 2. Создаем файл конфигурации для BuildKit
       - name: Create BuildKit config
         run: |
-          cat <<EOF > buildkitd.toml
+          cat <<EOF > /tmp/buildkitd.toml
           [registry."${{ secrets.NEXUS_HOST }}"]
             http = true
-            insecure = true
           EOF
 
-      # 2. Передаем этот файл через параметр config (вместо buildkitd-config-inline)
+      # 3. Настраиваем Buildx с ПРАВИЛЬНЫМ именем параметра
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
-          config: ./buildkitd.toml
+          buildkitd-config: /tmp/buildkitd.toml
           driver-opts: network=host
 
       - name: Login to GitHub Container Registry
