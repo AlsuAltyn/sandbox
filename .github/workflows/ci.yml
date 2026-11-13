@@ -44,6 +44,14 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          # Ключевое исправление: явно разрешаем HTTP для Nexus
+          config-inline: |
+            [registry."${{ secrets.NEXUS_HOST }}"]
+              http = true
+              insecure = true
+          # Важно для применения конфигурации внутри контейнера Buildx
+          network: host
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -80,8 +88,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # Разрешаем пушить в Nexus по HTTP (без HTTPS)
-          insecure: true
 
   deploy:
     needs: [version, build]
@@ -94,7 +100,6 @@ jobs:
 
       - name: Prepare .env file
         run: |
-          # ИСПОЛЬЗУЕМ ИМЕНА ВАШИХ РЕПОЗИТОРИЕВ В NEXUS
           echo "REPOSITORY_BACKEND=${{ secrets.NEXUS_HOST }}/altynguzina-backend-docker/sandbox-backend" > .env
           echo "REPOSITORY_FRONTEND=${{ secrets.NEXUS_HOST }}/altynguzina-frontend-docker/sandbox-frontend" >> .env
           echo "IMAGE_TAG=${{ needs.version.outputs.version }}" >> .env
@@ -106,7 +111,6 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
-          # Используем переменную vars, так как вы создали её как Variable
           known_hosts: ${{ vars.VM_SSH_KNOWN_HOSTS }}
           source: "src/docker-compose.yml,src/deploy.sh,.env"
           target: "~/sandbox"
@@ -120,13 +124,8 @@ jobs:
           known_hosts: ${{ vars.VM_SSH_KNOWN_HOSTS }}
           script: |
             cd ~/sandbox
-            
-            # Перемещаем .env в папку src, где лежит docker-compose.yml
             mv .env src/.env
-            
-            # Логин в Nexus (переопределяем протокол на http для docker login, если нужно)
             echo "${{ secrets.NEXUS_REPO_PASS }}" | docker login ${{ secrets.NEXUS_HOST }} -u ${{ secrets.NEXUS_REPO_USER }} --password-stdin
-            
             cd src
             chmod +x deploy.sh
             ./deploy.sh
