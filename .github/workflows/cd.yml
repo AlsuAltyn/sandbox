@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CD
 
 on:
   #push:
@@ -7,7 +7,7 @@ on:
     inputs:
       VERSION:
         description: 'Version to deploy (for rollback)'
-        required: false
+        required: true
 
 permissions:
   contents: read
@@ -104,45 +104,45 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
-    needs: [version, build]
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # deploy:
+  #   needs: [version, build]
+  #   if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+  #   runs-on: ubuntu-latest
+  #   environment: production
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Prepare .env file
-        run: |
-          echo "REPOSITORY_BACKEND=ghcr.io/${{ github.repository_owner }}/sandbox-backend" > .env
-          echo "REPOSITORY_FRONTEND=ghcr.io/${{ github.repository_owner }}/sandbox-frontend" >> .env
-          echo "IMAGE_TAG=${{ needs.version.outputs.version }}" >> .env
-          echo "VERSION=${{ needs.version.outputs.version }}" >> .env
+  #     - name: Prepare .env file
+  #       run: |
+  #         echo "REPOSITORY_BACKEND=ghcr.io/${{ github.repository_owner }}/sandbox-backend" > .env
+  #         echo "REPOSITORY_FRONTEND=ghcr.io/${{ github.repository_owner }}/sandbox-frontend" >> .env
+  #         echo "IMAGE_TAG=${{ needs.version.outputs.version }}" >> .env
+  #         echo "VERSION=${{ needs.version.outputs.version }}" >> .env
 
-      - name: Copy files to VM
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          known_hosts: ${{ vars.VM_SSH_KNOWN_HOSTS }}
-          source: "src/docker-compose.yml,src/deploy.sh,.env"
-          target: "~/sandbox"
+  #     - name: Copy files to VM
+  #       uses: appleboy/scp-action@v0.1.7
+  #       with:
+  #         host: ${{ secrets.VM_HOST }}
+  #         username: ${{ secrets.VM_USER }}
+  #         key: ${{ secrets.VM_SSH_KEY }}
+  #         known_hosts: ${{ vars.VM_SSH_KNOWN_HOSTS }}
+  #         source: "src/docker-compose.yml,src/deploy.sh,.env"
+  #         target: "~/sandbox"
 
-      - name: Execute remote deploy
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          known_hosts: ${{ vars.VM_SSH_KNOWN_HOSTS }}
-          script: |
-            cd ~/sandbox
-            mv .env src/.env
-            # --- Nexus закомментирован ---
-            # echo "${{ secrets.NEXUS_REPO_PASS }}" | docker login ${{ secrets.NEXUS_HOST }} -u ${{ secrets.NEXUS_REPO_USER }} --password-stdin
-            # -----------------------------
-            cd src
-            chmod +x deploy.sh
-            ./deploy.sh
+  #     - name: Execute remote deploy
+  #       uses: appleboy/ssh-action@v1.0.3
+  #       with:
+  #         host: ${{ secrets.VM_HOST }}
+  #         username: ${{ secrets.VM_USER }}
+  #         key: ${{ secrets.VM_SSH_KEY }}
+  #         known_hosts: ${{ vars.VM_SSH_KNOWN_HOSTS }}
+  #         script: |
+  #           cd ~/sandbox
+  #           mv .env src/.env
+  #           # --- Nexus закомментирован ---
+  #           # echo "${{ secrets.NEXUS_REPO_PASS }}" | docker login ${{ secrets.NEXUS_HOST }} -u ${{ secrets.NEXUS_REPO_USER }} --password-stdin
+  #           # -----------------------------
+  #           cd src
+  #           chmod +x deploy.sh
+  #           ./deploy.sh
