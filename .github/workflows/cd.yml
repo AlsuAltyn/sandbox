@@ -46,7 +46,7 @@ jobs:
       - name: Get kubeconfig
         run: |
           export PATH="$HOME/yandex-cloud/bin:$PATH"
-          yc managed-kubernetes cluster get-credentials <k8s-cluster-933> --external --force
+          yc managed-kubernetes cluster get-credentials k8s-cluster-933 --external --force
 
       # 3. Настраиваем доступ к GHCR (создаем секрет в кластере)
       - name: Create GHCR secret
