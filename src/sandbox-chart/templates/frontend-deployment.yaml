@@ -15,7 +15,7 @@ spec:
         app: sandbox-frontend
     spec:
       imagePullSecrets:
-        - name: ghcr-secret
+        - name: ghcr
       containers:
         - name: frontend
           image: "{{ .Values.frontend.image }}:{{ .Values.frontend.tag }}"

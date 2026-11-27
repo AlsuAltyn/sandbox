@@ -18,7 +18,7 @@ spec:
         - name: ghcr-secret        # если GHCR приватный
       containers:
         - name: backend
-          image: "ghcr.io/denisereda/sandbox-backend:latest"
+          image: "ghcr.io/AlsuAltyn/sandbox-backend:latest"
           imagePullPolicy: Always
           ports:
             - name: http

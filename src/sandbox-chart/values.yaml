@@ -1,6 +1,6 @@
 backend:
-  image: ghcr.io/denisereda/sandbox-backend
-  tag: "latest"
+  image: ghcr.io/alsualtyn/sandbox/sandbox-backend
+  tag: latest
   resources:
     requests:
       cpu: "100m"
@@ -8,10 +8,15 @@ backend:
     limits:
       cpu: "500m"
       memory: "512Mi"
+  service:                        
+    type: ClusterIP 
+    port: 8081
+                  
+    
 
 frontend:
-  image: ghcr.io/denisereda/sandbox-frontend
-  tag: "latest"
+  image: ghcr.io/alsualtyn/sandbox/sandbox-frontend
+  tag: latest
   resources:
     requests:
       cpu: "100m"
@@ -19,4 +24,27 @@ frontend:
     limits:
       cpu: "500m"
       memory: "512Mi"
-  nodePort: 30080
+  service:                     
+    type: ClusterIP 
+    port: 8888
+    
+
+db:
+  enabled: true
+  host: sandbox-postgres      
+  port: 5432
+  user: postgres
+  password: postgres         
+  name: postgres
+  sslmode: disable
+
+postgres:
+  image: postgres:15-alpine
+  storage: 1Gi  
+
+
+ingress:
+  enabled: true
+  className: nginx
+
+
