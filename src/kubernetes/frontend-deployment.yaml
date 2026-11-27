@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: "ghcr.io/denisereda/sandbox-frontend:latest"
+          image: "ghcr.io/AlsuAltyn/sandbox-frontend:latest"
           imagePullPolicy: Always
           ports:
             - name: http
